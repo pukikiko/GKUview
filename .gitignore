@@ -1,0 +1,25 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Slint generated code (generated into OUT_DIR, but just in case)
+crates/gkuview/ui/generated/
+
+# Local app data
+/exports/
+*.gkuview-tmp
+*.part
+
+# Raw captures: dashcam media can embed GPS telemetry and network metadata.
+# Keep the whole captures/ tree local-only; test fixtures under
+# crates/*/tests/fixtures/ are synthetic and remain tracked.
+/captures/
+*.pcap
+*.pcapng
+*.har
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

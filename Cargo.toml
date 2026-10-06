@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/gkuview-core",
+    "crates/gkuview-cli",
+    "crates/gkuview",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+rust-version = "1.75"
+authors = ["GKUview contributors"]
+description = "Client, clip viewer and clip editor (cropper) for GKU dashcams"
+
+[workspace.dependencies]
+gkuview-core = { path = "crates/gkuview-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ureq = { version = "3", default-features = false }
+tempfile = "3"
+slint = "1.18"
+slint-build = "1.18"
+
+[profile.release]
+lto = "thin"
+strip = true

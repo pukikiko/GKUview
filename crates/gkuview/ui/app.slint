@@ -1,0 +1,428 @@
+import { Button, LineEdit, ListView, Palette, Slider } from "std-widgets.slint";
+
+export struct ClipItem {
+    name: string,
+    path: string,
+    size: string,
+    date: string,
+    thumb: image,
+}
+
+export component MainWindow inherits Window {
+    title: "GKUview";
+    width: 1240px;
+    height: 800px;
+    background: Palette.background;
+
+    in-out property <string> host: "192.168.0.1";
+    in property <string> status: "Not connected";
+    in property <string> stats-line: "";
+    in property <bool> busy: false;
+    in property <float> progress: 0.0;
+    in property <string> device-model: "";
+    in property <string> device-firmware: "";
+    in property <string> live-url: "";
+
+    // Clip list
+    in property <[ClipItem]> clips: [];
+    in-out property <int> selected-index: -1;
+    in-out property <string> filter-text: "";
+    in-out property <int> kind-filter: 0;
+
+    // Player
+    in property <image> player-frame;
+    in property <string> player-title: "No clip selected";
+    in-out property <float> player-position: 0.0;
+    in property <float> player-duration: 0.0;
+    in property <string> player-time-text: "00:00";
+    in property <string> player-duration-text: "00:00";
+    in property <bool> playing: false;
+    in property <bool> player-error: false;
+    in property <bool> has-frame: false;
+
+    // Trim
+    in property <float> clip-duration: 0.0;
+    in-out property <float> in-time: 0.0;
+    in-out property <float> out-time: 1.0;
+    in property <string> in-time-text: "00:00";
+    in property <string> out-time-text: "00:00";
+    in property <string> selection-text: "Select a clip to play and trim";
+    in property <string> export-path: "";
+
+    callback connect-clicked();
+    callback refresh-clicked();
+    callback filter-changed(string);
+    callback kind-filter-changed(int);
+    callback clip-activated(int);
+    callback play-pause-clicked();
+    callback position-changed(float);
+    callback set-in-clicked();
+    callback set-out-clicked();
+    callback in-changed(float);
+    callback out-changed(float);
+    callback preview-clicked();
+    callback export-clicked();
+    callback download-clicked();
+    callback live-clicked();
+    callback open-external-clicked();
+    callback open-folder-clicked();
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 8px;
+
+        // ---- toolbar -------------------------------------------------
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: "GKUview";
+                font-size: 22px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: root.device-model;
+                opacity: 0.65;
+                vertical-alignment: center;
+            }
+            Text {
+                text: root.device-firmware;
+                opacity: 0.65;
+                vertical-alignment: center;
+            }
+            LineEdit {
+                width: 180px;
+                text <=> root.host;
+                placeholder-text: "192.168.0.1";
+                enabled: !root.busy;
+                accepted => { root.connect-clicked(); }
+            }
+            Button {
+                text: root.busy ? "Working..." : "Connect";
+                enabled: !root.busy;
+                clicked => { root.connect-clicked(); }
+            }
+            Button {
+                text: "Refresh";
+                enabled: !root.busy;
+                clicked => { root.refresh-clicked(); }
+            }
+            Button {
+                text: "Live view";
+                enabled: root.live-url != "";
+                clicked => { root.live-clicked(); }
+            }
+        }
+
+        // ---- main area ------------------------------------------------
+        HorizontalLayout {
+            spacing: 10px;
+
+            // clips panel
+            Rectangle {
+                width: 350px;
+                background: Palette.alternate-background;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: Palette.border;
+
+                VerticalLayout {
+                    padding: 8px;
+                    spacing: 6px;
+
+                    HorizontalLayout {
+                        spacing: 4px;
+                        LineEdit {
+                            horizontal-stretch: 1;
+                            text <=> root.filter-text;
+                            placeholder-text: "Filter clips...";
+                            edited => { root.filter-changed(self.text); }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        Button {
+                            text: "All";
+                            primary: root.kind-filter == 0;
+                            clicked => { root.kind-filter-changed(0); }
+                        }
+                        Button {
+                            text: "Video";
+                            primary: root.kind-filter == 1;
+                            clicked => { root.kind-filter-changed(1); }
+                        }
+                        Button {
+                            text: "Photo";
+                            primary: root.kind-filter == 2;
+                            clicked => { root.kind-filter-changed(2); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: "\{root.clips.length}";
+                            opacity: 0.6;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    ListView {
+                        vertical-stretch: 1;
+                        for clip[i] in root.clips : Rectangle {
+                            height: 64px;
+                            border-radius: 4px;
+                            background: i == root.selected-index
+                                ? Palette.selection-background
+                                : (touch.has-hover ? Palette.control-background : transparent);
+
+                            HorizontalLayout {
+                                padding: 6px;
+                                spacing: 8px;
+
+                                Rectangle {
+                                    width: 84px;
+                                    height: 48px;
+                                    background: #101114;
+                                    border-radius: 4px;
+                                    clip: true;
+                                    Image {
+                                        source: clip.thumb;
+                                        image-fit: cover;
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    Text {
+                                        text: clip.name;
+                                        color: i == root.selected-index
+                                            ? Palette.selection-foreground
+                                            : Palette.foreground;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: clip.date;
+                                        color: i == root.selected-index
+                                            ? Palette.selection-foreground
+                                            : Palette.foreground;
+                                        opacity: 0.65;
+                                        font-size: 12px;
+                                    }
+                                    Text {
+                                        text: clip.size;
+                                        color: i == root.selected-index
+                                            ? Palette.selection-foreground
+                                            : Palette.foreground;
+                                        opacity: 0.5;
+                                        font-size: 11px;
+                                    }
+                                }
+                            }
+                            touch := TouchArea {
+                                clicked => { root.clip-activated(i); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // player panel
+            Rectangle {
+                horizontal-stretch: 1;
+                background: Palette.alternate-background;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: Palette.border;
+
+                VerticalLayout {
+                    padding: 8px;
+                    spacing: 8px;
+
+                    Text {
+                        text: root.player-title;
+                        font-weight: 600;
+                        font-size: 15px;
+                        overflow: elide;
+                    }
+
+                    Rectangle {
+                        background: #101114;
+                        border-radius: 6px;
+                        min-height: 260px;
+                        vertical-stretch: 1;
+                        clip: true;
+
+                        Image {
+                            source: root.player-frame;
+                            image-fit: contain;
+                        }
+                        if root.selected-index < 0 : Text {
+                            text: "Select a clip to start playing";
+                            color: #8a8f98;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        if root.selected-index >= 0 && !root.has-frame : Text {
+                            text: root.player-error
+                                ? "Cannot decode this clip - install full ffmpeg or use Open externally"
+                                : "Buffering...";
+                            color: #8a8f98;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            width: 84px;
+                            text: root.playing ? "Pause" : "Play";
+                            enabled: root.selected-index >= 0;
+                            clicked => { root.play-pause-clicked(); }
+                        }
+                        Text {
+                            text: root.player-time-text;
+                            vertical-alignment: center;
+                            width: 54px;
+                        }
+                        Slider {
+                            horizontal-stretch: 1;
+                            enabled: root.selected-index >= 0;
+                            minimum: 0.0;
+                            maximum: max(root.player-duration, 1.0);
+                            value: root.player-position;
+                            changed(v) => { root.position-changed(v); }
+                        }
+                        Text {
+                            text: root.player-duration-text;
+                            vertical-alignment: center;
+                            width: 54px;
+                            horizontal-alignment: right;
+                        }
+                    }
+
+                    // trim & export
+                    Rectangle {
+                        background: Palette.background;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: Palette.border;
+
+                        VerticalLayout {
+                            padding: 8px;
+                            spacing: 6px;
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "Trim & export";
+                                    font-weight: 600;
+                                }
+                                Text {
+                                    text: "downloads only the selected window";
+                                    opacity: 0.6;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                Button {
+                                    text: "Set In to playhead";
+                                    enabled: root.selected-index >= 0;
+                                    clicked => { root.set-in-clicked(); }
+                                }
+                                Button {
+                                    text: "Set Out to playhead";
+                                    enabled: root.selected-index >= 0;
+                                    clicked => { root.set-out-clicked(); }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text { text: "In"; width: 22px; vertical-alignment: center; }
+                                Slider {
+                                    horizontal-stretch: 1;
+                                    enabled: root.selected-index >= 0 && !root.busy;
+                                    minimum: 0.0;
+                                    maximum: max(root.clip-duration, 0.1);
+                                    value: root.in-time;
+                                    changed(v) => { root.in-changed(v); }
+                                }
+                                Text { text: root.in-time-text; width: 50px; vertical-alignment: center; }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text { text: "Out"; width: 22px; vertical-alignment: center; }
+                                Slider {
+                                    horizontal-stretch: 1;
+                                    enabled: root.selected-index >= 0 && !root.busy;
+                                    minimum: 0.0;
+                                    maximum: max(root.clip-duration, 0.1);
+                                    value: root.out-time;
+                                    changed(v) => { root.out-changed(v); }
+                                }
+                                Text { text: root.out-time-text; width: 50px; vertical-alignment: center; }
+                            }
+                            Text {
+                                text: root.selection-text;
+                                opacity: 0.75;
+                                font-size: 12px;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: "Preview frame";
+                                    enabled: root.selected-index >= 0 && !root.busy;
+                                    clicked => { root.preview-clicked(); }
+                                }
+                                Button {
+                                    text: "Download cropped";
+                                    enabled: root.selected-index >= 0 && !root.busy;
+                                    clicked => { root.export-clicked(); }
+                                }
+                                Button {
+                                    text: "Download full";
+                                    enabled: root.selected-index >= 0 && !root.busy;
+                                    clicked => { root.download-clicked(); }
+                                }
+                                Button {
+                                    text: "Open externally";
+                                    enabled: root.selected-index >= 0;
+                                    clicked => { root.open-external-clicked(); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                Button {
+                                    text: "Output folder";
+                                    enabled: root.export-path != "";
+                                    clicked => { root.open-folder-clicked(); }
+                                }
+                            }
+                            Text {
+                                text: root.export-path;
+                                opacity: 0.6;
+                                font-size: 12px;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- status bar ----------------------------------------------
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: root.status;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            Text {
+                text: root.stats-line;
+                opacity: 0.7;
+                font-size: 12px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+    }
+}

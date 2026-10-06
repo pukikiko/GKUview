@@ -1,0 +1,20 @@
+[package]
+name = "gkuview"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Slint desktop client, viewer and clip editor for GKU dashcams"
+
+[[bin]]
+name = "gkuview"
+path = "src/main.rs"
+
+[dependencies]
+gkuview-core.workspace = true
+serde_json.workspace = true
+slint.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
